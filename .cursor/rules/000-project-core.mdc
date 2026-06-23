@@ -1,0 +1,76 @@
+---
+description: Core project rules. Always active for every interaction.
+globs:
+alwaysApply: true
+---
+
+# Project Core Rules
+
+**Source of truth**: `AGENTS.md` at repository root. Read it before making changes.
+
+## What This Is
+
+TKE RAG Chatbot — a production-grade Retrieval-Augmented Generation chatbot for the Tsinghua School of Software website corpus (~850 pages, Chinese + English).
+
+## Monorepo Layout
+
+```
+apps/web/          → Next.js 15 App Router (frontend + API backend)
+  app/             → Pages + API routes (server-side)
+  components/      → React UI (client components)
+  lib/             → Server logic: auth, RAG, DB, embeddings, LLM
+  entities/        → TypeORM entities (.entity.ts)
+  migrations/      → TypeORM migrations (manual SQL for pgvector)
+scripts/           → CLI tools: crawl.ts, ingest.ts, check-coverage.ts
+```
+
+## Hard Rules (never violate)
+
+- **TypeORM only** — no Prisma, no Drizzle. Raw SQL via `dataSource.query()` for vector ops.
+- **App Router only** — no Pages Router. Server Components by default.
+- **No LangChain** — custom RAG pipeline. We own the retrieval logic.
+- **No `any` type** — define proper interfaces/types.
+- **No `synchronize: true`** — always use manual migrations.
+- **No Edge Runtime** — TypeORM requires `export const runtime = "nodejs"` on API routes.
+- **`@/` alias** resolves to `apps/web/` — use it inside the web app.
+- **`import type`** for cross-entity references (avoids circular dep TDZ with SWC).
+- **String-based relations** in TypeORM entities: `@OneToMany("Chunk", "article")` not `() => Chunk`.
+
+## Tech Stack Quick Ref
+
+| Concern | Choice |
+|---------|--------|
+| LLM | OpenRouter `deepseek/deepseek-v4-pro` |
+| Embeddings | Ollama `qwen3-embedding:4b` (1024 dims, local) |
+| Vector DB | PostgreSQL 16 + pgvector, HNSW index, cosine `<=>` |
+| Keyword search | `tsvector` GIN index, `'simple'` config, pre-segmented Chinese |
+| Auth | jose JWT in HttpOnly cookie |
+| CSS | Tailwind CSS 4 |
+
+## API Providers (Beijing server is blocked from OpenAI/Claude)
+
+- LLM: `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` (OpenRouter)
+- Embeddings: `EMBEDDING_BASE_URL` / `EMBEDDING_API_KEY` / `EMBEDDING_MODEL` (Ollama local or SiliconFlow)
+- These are **separate** clients — never share config between them.
+
+## Naming Conventions
+
+- Files: `kebab-case.ts` (entities: `article.entity.ts`)
+- Variables/functions: `camelCase`
+- Types/Components/Entities: `PascalCase`
+- Named exports preferred (except Next.js page defaults)
+
+## DRY Policy
+
+- No magic strings or numbers. Use `const enum`, `as const`, or named constants.
+- Configurable values from `process.env` with typed defaults.
+- Shared types centralized — not duplicated per component.
+- If a value is defined once, every consumer imports it from there.
+
+## Scripts Run With
+
+```bash
+ts-node -P tsconfig.json --swc scripts/<name>.ts
+```
+Not `tsx` — SWC is required for TypeORM decorator metadata.
+Scripts must `import "dotenv/config"` and `import "reflect-metadata"` at the top.

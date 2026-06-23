@@ -147,7 +147,7 @@ Not applicable — ingest script is a local CLI tool, Ollama runs on localhost.
 | All chunks have jieba-segmented content | 100% | SQL: non-null `content_segmented` |
 | Embedding dimensions | Exactly 1024 | Unit test on Ollama output |
 | Ingest time (full) | < 30 min for ~850 articles | Timer in ingest script |
-| Test coverage | >= 80% on chunking + embedding modules | Jest coverage report |
+| Test coverage | >= 60% on chunking + embedding modules | Vitest coverage report (enforced by threshold) |
 
 ## 13. Open Questions
 

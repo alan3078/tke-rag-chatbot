@@ -11,41 +11,23 @@
 
 import { hybridSearch, formatContext } from "./retrieval";
 import { generateAnswer } from "./llm";
-import type { RetrievalResult } from "./retrieval";
-import type { LlmMessage } from "./llm";
+import type { Citation, ChatMessage, RagResponse, LlmMessage } from "@/types";
 
-export interface Citation {
-  title: string;
-  url: string;
-  section: string | null;
-  date: string | null;
-}
-
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-export interface RagResponse {
-  answer: string;
-  citations: Citation[];
-  retrievedChunks: RetrievalResult[];
-}
+export type { Citation, ChatMessage, RagResponse };
 
 /**
  * Run the full RAG pipeline for a user query.
  */
 export async function ragQuery(
   query: string,
-  conversationHistory: ChatMessage[] = []
+  conversationHistory: ChatMessage[] = [],
 ): Promise<RagResponse> {
   // 1. Retrieve relevant chunks
   const retrievedChunks = await hybridSearch(query);
 
   if (retrievedChunks.length === 0) {
     return {
-      answer:
-        "抱歉，我在已索引的网站内容中找不到与您问题相关的信息。请尝试换个方式提问。",
+      answer: "抱歉，我在已索引的网站内容中找不到与您问题相关的信息。请尝试换个方式提问。",
       citations: [],
       retrievedChunks: [],
     };
@@ -69,15 +51,10 @@ export async function ragQuery(
       title: chunk.title,
       url: chunk.url,
       section: chunk.section,
-      date: chunk.publishedDate
-        ? new Date(chunk.publishedDate).toISOString().split("T")[0]
-        : null,
+      date: chunk.publishedDate ? new Date(chunk.publishedDate).toISOString().split("T")[0] : null,
     }))
     // Deduplicate by URL
-    .filter(
-      (citation, index, self) =>
-        self.findIndex((c) => c.url === citation.url) === index
-    );
+    .filter((citation, index, self) => self.findIndex((c) => c.url === citation.url) === index);
 
   return {
     answer,

@@ -3,19 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { ChatMessageBubble } from "./chat-message";
 import { CitationList } from "./citation-list";
-
-interface Citation {
-  title: string;
-  url: string;
-  section: string | null;
-  date: string | null;
-}
-
-interface DisplayMessage {
-  role: "user" | "assistant";
-  content: string;
-  citations?: Citation[];
-}
+import { MessageRole } from "@/lib/constants";
+import type { DisplayMessage } from "@/types";
 
 export function ChatBox() {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -31,7 +20,7 @@ export function ChatBox() {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
-    const userMessage: DisplayMessage = { role: "user", content: input };
+    const userMessage: DisplayMessage = { role: MessageRole.User, content: input };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
@@ -52,7 +41,7 @@ export function ChatBox() {
 
       const data = await res.json();
       const assistantMessage: DisplayMessage = {
-        role: "assistant",
+        role: MessageRole.Assistant,
         content: data.answer,
         citations: data.citations,
       };
@@ -61,9 +50,9 @@ export function ChatBox() {
       setMessages((prev) => [
         ...prev,
         {
-          role: "assistant",
+          role: MessageRole.Assistant,
           content: "抱歉，发生了错误，请稍后再试。",
-        },
+        } satisfies DisplayMessage,
       ]);
     } finally {
       setLoading(false);
@@ -77,9 +66,7 @@ export function ChatBox() {
         {messages.length === 0 && (
           <div className="text-center text-gray-400 mt-20">
             <p className="text-lg">Welcome to TKE RAG Chatbot</p>
-            <p className="text-sm mt-2">
-              Ask any question about 清华大学软件学院
-            </p>
+            <p className="text-sm mt-2">Ask any question about 清华大学软件学院</p>
           </div>
         )}
         {messages.map((msg, i) => (
@@ -99,10 +86,7 @@ export function ChatBox() {
       </div>
 
       {/* Input */}
-      <form
-        onSubmit={handleSubmit}
-        className="border-t p-4 flex gap-2 bg-white"
-      >
+      <form onSubmit={handleSubmit} className="border-t p-4 flex gap-2 bg-white">
         <input
           type="text"
           value={input}

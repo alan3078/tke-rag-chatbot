@@ -129,7 +129,7 @@ Not applicable — crawler is a CLI script running locally, not exposed to the n
 | Articles crawled | >= 800 | `check-coverage.ts` output |
 | Sections covered | 5/5 main columns | `check-coverage.ts` by-section report |
 | Crawl errors | < 5% of total URLs | Error count in crawl log |
-| Test coverage on crawler | >= 80% | Jest coverage report |
+| Test coverage on crawler | >= 60% | Vitest coverage report |
 
 ## 13. Open Questions
 

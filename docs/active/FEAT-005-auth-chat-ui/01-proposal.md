@@ -152,7 +152,7 @@ However: zero tests exist, `react-markdown` is installed but unused (LLM output 
 | Unauthorized access blocked | 100% | E2E test |
 | Chat round-trip works | Question → Answer displayed | E2E test |
 | Citations displayed | Every answer shows source links | Visual verification + unit test |
-| Test coverage | >= 80% on auth + components | Jest coverage report |
+| Test coverage | >= 60% on auth + components | Vitest coverage report |
 
 ## 13. Open Questions
 

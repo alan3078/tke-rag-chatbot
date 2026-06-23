@@ -91,7 +91,7 @@ Runtime:        Local Ollama (http://localhost:11434)
 Hardware:       M1 Pro (sufficient for 4b model)
 ```
 
-**Why 1024 dimensions** (not 2048 or 4096): Good balance of quality and performance. HNSW index size and query latency grow with dimensions. 1024 is the same as the current schema, minimizing migration complexity. Can increase later if retrieval quality is insufficient.
+**Why 1024 dimensions** (not 2560 or 4096): This stays within pgvector's HNSW limit while preserving a strong quality/performance balance for the bilingual corpus. It also keeps the ANN index path available without extra schema or query complexity.
 
 ### Chunking Strategy: Hierarchical Two-Level
 
@@ -141,30 +141,129 @@ graph TD
 | 800-2000 chars | Yes (full text) | Yes (2-3 chunks) | Article fits in L1 but benefits from granular L2 |
 | > 2000 chars | Yes (first 2000 chars) | Yes (multiple chunks) | L1 captures essence; L2 chunks cover full text |
 
-### Retrieval Strategy: Two-Level Search
+### Retrieval Strategy: Two-Level Hybrid Search
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Retrieval
-    participant VectorDB as PostgreSQL + pgvector
-    participant LLM
+#### Index Infrastructure (pgvector + PostgreSQL)
 
-    User->>Retrieval: query text
-    Retrieval->>VectorDB: Vector search Level 1 chunks (top 10)
-    VectorDB-->>Retrieval: article-level matches
-    Retrieval->>VectorDB: Vector search Level 2 chunks (top 20)
-    VectorDB-->>Retrieval: section-level matches
-    Retrieval->>VectorDB: Keyword search Level 2 chunks (top 20)
-    VectorDB-->>Retrieval: keyword matches
-    Retrieval->>Retrieval: RRF merge L2 results
-    Retrieval->>Retrieval: Boost L2 scores if parent article in L1 top results
-    Retrieval->>Retrieval: Select top 5-8 chunks for context
-    Retrieval->>LLM: context + question
-    LLM-->>User: answer with citations
+```
+HNSW Index:   idx_chunks_embedding_hnsw
+  Type:       hnsw
+  Operator:   vector_cosine_ops
+  Params:     m = 16, ef_construction = 64
+  Column:     embedding vector(1024)
+  Purpose:    Fast approximate nearest neighbor for cosine distance
+
+GIN Index:    idx_chunks_content_gin
+  Type:       gin
+  Expression: to_tsvector('simple', COALESCE(content_segmented, content))
+  Purpose:    Fast full-text keyword matching on jieba-segmented Chinese
 ```
 
-**Key insight**: If an article matches at Level 1 (semantically similar as a whole), its Level 2 chunks get a score boost in the RRF merge. This ensures that relevant articles surface their specific passages.
+#### Distance Metric: Cosine Distance
+
+We use **cosine distance** (`<=>` operator) throughout, not L2 or inner product.
+
+| Metric | Operator | Index Ops Class | Why / Why Not |
+|--------|----------|-----------------|---------------|
+| **Cosine distance** | `<=>` | `vector_cosine_ops` | Direction-based; works well for text similarity regardless of vector magnitude. qwen3-embedding outputs are not guaranteed L2-normalized, so cosine is more robust than inner product. |
+| L2 distance | `<->` | `vector_l2_ops` | Magnitude-sensitive; not ideal for comparing embeddings of different-length texts |
+| Inner product | `<#>` | `vector_ip_ops` | Requires L2-normalized vectors; we don't normalize |
+
+**Note**: Cosine distance = `1 - cosine_similarity`. Lower `<=>` value = more similar. pgvector's `<=>` returns distance (0 = identical), not similarity.
+
+#### Confidence / Similarity Threshold
+
+**Current design: No hard threshold.** We rely on RRF rank-based scoring rather than absolute distance cutoffs.
+
+Rationale:
+- Cosine distance values are not intuitive thresholds (varies by model, query length, content type)
+- A fixed threshold (e.g., "reject if distance > 0.5") would either miss valid results or include noise
+- The RRF rank-based fusion naturally pushes irrelevant results to the bottom
+- The LLM system prompt handles the "not enough context" case: if retrieved chunks are irrelevant, the LLM says "I cannot find the answer"
+
+If precision issues arise in evaluation, we can add a **post-RRF floor**: discard results below a minimum RRF score. This is easier to tune than raw cosine thresholds.
+
+#### Reranking Decision: No Cross-Encoder Reranker
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **No reranker (current)** | Simpler, faster, no additional model | May miss nuanced relevance ordering | Chosen for v1 |
+| Cross-encoder reranker (e.g., bge-reranker-v2) | More accurate pairwise relevance scoring | Extra model to run, adds 200-500ms latency, complex setup | Deferred to v2 if eval scores are low |
+| LLM-based reranking | Uses the LLM to score relevance | Very slow, expensive, overkill | Rejected |
+
+**Why no reranker for v1**: The site corpus is ~850 articles of mostly homogeneous structure (news, events, awards). The evaluation questions are factual and specific (dates, names, organizations). For this type of content, HNSW cosine + keyword + RRF provides sufficient retrieval quality. If the evaluation score on the 1000-question set shows retrieval is the bottleneck, we add a reranker in v2.
+
+#### Full Scoring Pipeline
+
+```mermaid
+flowchart TD
+    Q["User Query"] --> E["Embed query via Ollama qwen3-embedding:4b"]
+    E --> L1["L1 Vector Search: cosine distance, top 10 articles, WHERE level=1"]
+    E --> L2V["L2 Vector Search: cosine distance, top 20 chunks, WHERE level=2"]
+    Q --> L2K["L2 Keyword Search: tsvector ts_rank_cd, top 20 chunks, WHERE level=2"]
+
+    L2V --> RRF["RRF Merge via FULL OUTER JOIN"]
+    L2K --> RRF
+
+    RRF --> |"score = 0.6 / k+rank_v + 0.4 / k+rank_k, k=60"| BOOST
+    L1 --> BOOST["L1 Article Boost"]
+    BOOST --> |"L2 chunks whose article is in L1 top 10: score * 1.3"| TOP["Select top 5-8 by final score"]
+
+    TOP --> CTX["Format as numbered context with source metadata"]
+    CTX --> LLM["LLM generates answer with citations"]
+```
+
+#### Scoring Constants: `.env` vs Code
+
+Tunable constants that may change during evaluation are configurable via `.env`. Structural constants that are implementation details stay in code as named exports.
+
+**Tunable via `.env`** (may change during evaluation):
+
+| Env Variable | Code Constant | Default | Rationale |
+|-------------|---------------|---------|-----------|
+| `RETRIEVAL_VECTOR_WEIGHT` | `VECTOR_WEIGHT` | `0.6` | A/B test vector vs keyword balance |
+| `RETRIEVAL_KEYWORD_WEIGHT` | `KEYWORD_WEIGHT` | `0.4` | Derived from vector weight |
+| `RETRIEVAL_TOP_K` | `FINAL_TOP_K` | `8` | 5 vs 8 chunks affects answer quality vs token usage |
+| `RETRIEVAL_L1_BOOST` | `L1_BOOST_FACTOR` | `1.3` | New mechanism, needs experimentation |
+
+**Structural in code** (rarely change, would confuse as env vars):
+
+| Code Constant | Value | Rationale |
+|---------------|-------|-----------|
+| `RRF_K` | `60` | Mathematical constant from the RRF paper; changing it without understanding the math breaks scoring |
+| `L1_TOP_K` | `10` | Internal pipeline limit for L1 search |
+| `L2_VECTOR_TOP_K` | `20` | Internal pipeline limit for L2 vector arm |
+| `L2_KEYWORD_TOP_K` | `20` | Internal pipeline limit for L2 keyword arm |
+
+All constants MUST be named exports — no magic numbers inline.
+
+```typescript
+// Code pattern:
+export const VECTOR_WEIGHT = parseFloat(process.env.RETRIEVAL_VECTOR_WEIGHT ?? "0.6");
+export const KEYWORD_WEIGHT = parseFloat(process.env.RETRIEVAL_KEYWORD_WEIGHT ?? "0.4");
+export const FINAL_TOP_K = parseInt(process.env.RETRIEVAL_TOP_K ?? "8", 10);
+export const L1_BOOST_FACTOR = parseFloat(process.env.RETRIEVAL_L1_BOOST ?? "1.3");
+
+// Structural constants — named exports, not env vars
+export const RRF_K = 60;
+export const L1_TOP_K = 10;
+export const L2_VECTOR_TOP_K = 20;
+export const L2_KEYWORD_TOP_K = 20;
+```
+
+#### RRF Formula (per L2 chunk)
+
+```
+base_score = VECTOR_WEIGHT * (1 / (RRF_K + vector_rank))     -- 0 if not in vector results
+           + KEYWORD_WEIGHT * (1 / (RRF_K + keyword_rank))   -- 0 if not in keyword results
+
+final_score = base_score * L1_BOOST_FACTOR   -- if chunk's article_id is in L1 top 10
+            | base_score                      -- otherwise
+```
+
+A chunk appearing in **both** vector and keyword results gets a combined score from both arms. A chunk in only one arm gets 0 from the other. The FULL OUTER JOIN ensures no results are dropped.
+
+**Key insight**: The L1 boost acts as a soft reranker. Instead of an expensive cross-encoder, we use article-level semantic similarity as a proxy for relevance. If the article as a whole matches the query, its sections are more likely to be relevant.
 
 ### Anti-Patterns to Avoid
 
@@ -176,11 +275,56 @@ sequenceDiagram
 | Embedding dimension > 1024 without benchmarking | Larger dims increase index size and query latency | Start at 1024, benchmark, increase only if needed |
 | Re-embedding on every ingest run | Wastes compute for unchanged articles | Skip articles with existing chunks+embeddings |
 | Late chunking without clear article structure | Complex, hard to debug | Explicit hierarchical chunking with clear levels |
+| Magic numbers (`if (level === 1)`, `limit 8`) | Unreadable, error-prone, violates DRY | Use `const enum ChunkLevel { Article = 1, Section = 2 }` and named constants |
+| Hardcoded tunable values in code | Can't adjust during evaluation without rebuild | Tunable values via `process.env` with typed defaults |
+| Duplicated type definitions across files | DRY violation, divergence risk | Centralize shared types (e.g., `RetrievalResult`, `Citation`) in a single types file |
+
+### Shared Enums and Constants
+
+All domain enums and tunable constants live in a central location so every module imports from one source of truth:
+
+```typescript
+// apps/web/lib/constants.ts
+
+/** Chunk levels for hierarchical retrieval */
+export const enum ChunkLevel {
+  /** Full article text with metadata — one per article */
+  Article = 1,
+  /** Section/paragraph group within a long article */
+  Section = 2,
+}
+
+/** Chat message roles */
+export const enum MessageRole {
+  User = "user",
+  Assistant = "assistant",
+}
+
+// --- Tunable via .env (may change during evaluation) ---
+export const VECTOR_WEIGHT = parseFloat(process.env.RETRIEVAL_VECTOR_WEIGHT ?? "0.6");
+export const KEYWORD_WEIGHT = parseFloat(process.env.RETRIEVAL_KEYWORD_WEIGHT ?? "0.4");
+export const FINAL_TOP_K = parseInt(process.env.RETRIEVAL_TOP_K ?? "8", 10);
+export const L1_BOOST_FACTOR = parseFloat(process.env.RETRIEVAL_L1_BOOST ?? "1.3");
+export const EMBEDDING_DIMENSIONS = parseInt(process.env.EMBEDDING_DIMENSIONS ?? "1024", 10);
+
+// --- Structural constants (implementation details, not user-configurable) ---
+export const RRF_K = 60;
+export const L1_TOP_K = 10;
+export const L2_VECTOR_TOP_K = 20;
+export const L2_KEYWORD_TOP_K = 20;
+export const EMBEDDING_BATCH_SIZE = 32;
+export const L1_TRUNCATION_CHARS = 2000;
+export const L2_MIN_ARTICLE_CHARS = 800;
+export const L2_TARGET_CHUNK_CHARS = 750;
+export const L2_MAX_CHUNK_CHARS = 900;
+export const L2_OVERLAP_CHARS = 100;
+```
 
 ### Chunk Entity Schema Change
 
 ```typescript
-// Updated chunk entity
+import { ChunkLevel } from "@/lib/constants";
+
 @Entity("chunks")
 class Chunk {
   @PrimaryGeneratedColumn()
@@ -192,8 +336,8 @@ class Chunk {
   @Column({ name: "chunk_index" })
   chunkIndex: number;
 
-  @Column({ type: "smallint", default: 1 })
-  level: 1 | 2;  // NEW: 1 = article-level, 2 = section-level
+  @Column({ type: "smallint", default: ChunkLevel.Article })
+  level: ChunkLevel;  // NEW: Article (1) or Section (2)
 
   @Column({ type: "text" })
   content: string;
@@ -201,8 +345,8 @@ class Chunk {
   @Column({ type: "text", nullable: true, name: "content_segmented" })
   contentSegmented: string;
 
-  @Column({ type: "float", array: true, nullable: true })
-  embedding: number[];  // vector(1024) via pgvector
+  @Column({ type: "vector", length: 1024, nullable: true })
+  embedding: number[] | null;
 
   @Column({ type: "int", nullable: true, name: "token_count" })
   tokenCount: number;

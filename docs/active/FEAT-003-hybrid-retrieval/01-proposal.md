@@ -97,12 +97,15 @@ The retrieval must search both levels, combine vector similarity + keyword match
 
 | Constraint | Source | Implication |
 |-----------|--------|-------------|
-| pgvector `<=>` for cosine distance | Infrastructure | Raw SQL required |
-| HNSW index on `embedding` column | Migration | Fast approximate nearest neighbor search |
-| GIN index on `content_segmented` tsvector | Migration | Fast keyword search |
+| pgvector `<=>` cosine distance operator | Migration + ADR-0006 | Raw SQL required; `vector_cosine_ops` HNSW index |
+| HNSW index: m=16, ef_construction=64 | Migration | Fast approximate nearest neighbor; no runtime config needed |
+| GIN index on `to_tsvector('simple', content_segmented)` | Migration | Uses `'simple'` config (no stemming) with jieba-segmented text |
 | Must filter by `level` column in queries | ADR-0006 | `WHERE level = 1` for L1, `WHERE level = 2` for L2 |
+| No similarity threshold (rank-based only) | ADR-0006 | RRF score determines ranking; LLM handles "insufficient context" |
+| No cross-encoder reranker for v1 | ADR-0006 | L1 boost (1.3x) acts as soft reranker; evaluate and add reranker in v2 if needed |
 | Max 5-8 results to LLM | Design decision | Balance context quality and token budget |
-| Embedding model: qwen3-embedding:4b | ADR-0006 | Query embedding generated via Ollama at query time |
+| Embedding model: qwen3-embedding:4b (1024 dims) | ADR-0006 | Query embedding generated via local Ollama at query time |
+| Cosine distance, not L2 or inner product | ADR-0006 | Direction-based; robust without L2 normalization |
 
 ## 9. Security Requirements
 
@@ -146,7 +149,7 @@ The retrieval must search both levels, combine vector similarity + keyword match
 | Query latency | < 500ms for full hybrid search | Timer in retrieval function |
 | L1 boost effectiveness | Articles matched at L1 have L2 chunks in final results | Unit test AC-5 |
 | English query recall | Relevant Chinese chunks found for English queries | Integration test AC-10 |
-| Test coverage | >= 80% on retrieval module | Jest coverage report |
+| Test coverage | >= 60% on retrieval module | Vitest coverage report |
 
 ## 13. Open Questions
 

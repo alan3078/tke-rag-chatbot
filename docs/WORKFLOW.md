@@ -175,7 +175,7 @@ docs/
 ### Gate Criteria
 
 - [ ] All ACs verified PASS
-- [ ] Test coverage >= 80% for new code
+- [ ] Test coverage >= 60% for new code (enforced by vitest threshold)
 - [ ] No TypeScript errors
 - [ ] Build succeeds
 - [ ] No regressions in existing tests

@@ -163,6 +163,31 @@ tke-rag-chatbot/
 - **Error handling**: Always handle errors explicitly. Use try/catch with typed errors. Never silently swallow errors.
 - **Decorators**: TypeORM requires `experimentalDecorators` and `emitDecoratorMetadata` — these are enabled in tsconfig.
 
+### DRY & Clean Code Policy
+
+- **No magic strings**: Never hardcode string literals inline. Use `const enum`, `as const` objects, or typed string unions. Every string that appears more than once must be a named constant.
+- **No magic numbers**: Every numeric literal with domain meaning must be a named constant or env var. `if (chunks.length > 8)` is wrong — use `if (chunks.length > FINAL_TOP_K)`.
+- **Use enums / const objects for categories**: Chunk levels, message roles, section names, error codes, etc. must be defined as enums or `as const` objects with a single source of truth.
+- **Centralize shared types**: Types used across modules (e.g., `Citation`, `RetrievalResult`, `ChatMessage`) live in a shared types file, not duplicated per component.
+- **Configurable constants via `.env`**: Values that may need tuning (retrieval weights, top-k limits, boost factors) are read from `process.env` with typed defaults. Structural constants (RRF k=60, batch sizes) stay in code but as named exports.
+- **Single source of truth**: If a value is defined in one place, every consumer imports it from there. Never redefine the same constant in two files.
+
+```typescript
+// BAD: magic strings and numbers everywhere
+if (chunk.level === 1) { ... }
+const results = await search(query, 8);
+if (role === "assistant") { ... }
+
+// GOOD: enums and named constants
+const enum ChunkLevel { Article = 1, Section = 2 }
+const FINAL_TOP_K = parseInt(process.env.RETRIEVAL_TOP_K ?? "8", 10);
+const enum MessageRole { User = "user", Assistant = "assistant" }
+
+if (chunk.level === ChunkLevel.Article) { ... }
+const results = await search(query, FINAL_TOP_K);
+if (role === MessageRole.Assistant) { ... }
+```
+
 ### React / Next.js
 
 - Use **App Router** (not Pages Router)
@@ -259,18 +284,22 @@ Do not invent names, dates, awards, or article facts.
 
 See `.env.example` for the complete list. Key variables:
 
-| Variable | Purpose |
-|----------|---------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `LLM_API_KEY` | OpenRouter API key (for DeepSeek chat) |
-| `LLM_BASE_URL` | `https://openrouter.ai/api/v1` |
-| `LLM_MODEL` | `deepseek/deepseek-v4-pro` |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` |
-| `EMBEDDING_MODEL` | `qwen3-embedding:4b` |
-| `EMBEDDING_DIMENSIONS` | `1024` |
-| `AUTH_USERNAME` | Demo login username |
-| `AUTH_PASSWORD` | Demo login password |
-| `AUTH_SECRET` | Session cookie signing secret |
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | — |
+| `LLM_API_KEY` | OpenRouter API key (for DeepSeek chat) | — |
+| `LLM_BASE_URL` | LLM API base URL | `https://openrouter.ai/api/v1` |
+| `LLM_MODEL` | LLM model identifier | `deepseek/deepseek-v4-pro` |
+| `OLLAMA_BASE_URL` | Ollama API base URL | `http://localhost:11434` |
+| `EMBEDDING_MODEL` | Embedding model name | `qwen3-embedding:4b` |
+| `EMBEDDING_DIMENSIONS` | Embedding vector dimensions | `1024` |
+| `AUTH_USERNAME` | Demo login username | — |
+| `AUTH_PASSWORD` | Demo login password | — |
+| `AUTH_SECRET` | Session cookie signing secret | — |
+| `RETRIEVAL_VECTOR_WEIGHT` | RRF vector arm weight | `0.6` |
+| `RETRIEVAL_KEYWORD_WEIGHT` | RRF keyword arm weight | `0.4` |
+| `RETRIEVAL_TOP_K` | Final chunks sent to LLM | `8` |
+| `RETRIEVAL_L1_BOOST` | Score multiplier for L1-matched article chunks | `1.3` |
 
 ### API Provider Strategy
 

@@ -26,8 +26,7 @@ import { DataSource } from "typeorm";
 import { Article } from "../apps/web/entities/article.entity";
 import { Chunk } from "../apps/web/entities/chunk.entity";
 
-const USER_AGENT =
-  "TKE-RAG-Challenge-Bot/1.0 AlanYiu contact:corgiking2020@gmail.com";
+const USER_AGENT = "TKE-RAG-Challenge-Bot/1.0 AlanYiu contact:corgiking2020@gmail.com";
 const CRAWL_DELAY = parseInt(process.env.CRAWL_DELAY_MS ?? "1000", 10);
 const BASE_URL = "https://www.thss.tsinghua.edu.cn";
 
@@ -197,31 +196,31 @@ interface ParsedArticle {
 /**
  * Parse an individual article page.
  */
-async function parseArticle(
-  url: string,
-  section: string
-): Promise<ParsedArticle | null> {
+async function parseArticle(url: string, section: string): Promise<ParsedArticle | null> {
   const html = await fetchPage(url);
   if (!html) return null;
 
   const $ = cheerio.load(html);
 
   // Remove noise
-  $("script, style, nav, footer, .header, .up-navbar, .up-footer, .up-share, .up-breadcrumb, .side-mask, .sidebar, iframe").remove();
+  $(
+    "script, style, nav, footer, .header, .up-navbar, .up-footer, .up-share, .up-breadcrumb, .side-mask, .sidebar, iframe",
+  ).remove();
 
   // Extract title
   const title =
     $(".up-title").first().text().trim() ||
     $(".arti_title").first().text().trim() ||
     $("h1").first().text().trim() ||
-    $("title").text().replace(/-清华大学软件学院$/, "").trim() ||
+    $("title")
+      .text()
+      .replace(/-清华大学软件学院$/, "")
+      .trim() ||
     "Untitled";
 
   // Extract date — look for "发布于 2026-06-15" pattern or date elements
   let publishedDate: Date | null = null;
-  const dateText =
-    $(".arti_update").first().text().trim() ||
-    $(".date-time").first().text().trim();
+  const dateText = $(".arti_update").first().text().trim() || $(".date-time").first().text().trim();
 
   if (dateText) {
     const dateMatch = dateText.match(/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/);
@@ -240,9 +239,7 @@ async function parseArticle(
   }
 
   // Extract body content
-  const bodyEl = $(
-    ".v_news_content, .wp_articlecontent, .arti_con, #content_div, .page"
-  ).first();
+  const bodyEl = $(".v_news_content, .wp_articlecontent, .arti_con, #content_div, .page").first();
 
   let body = "";
   if (bodyEl.length) {
@@ -268,25 +265,27 @@ async function parseArticle(
 
   // Clean up body
   body = body
-    .replace(/\n{3,}/g, "\n\n")  // collapse excess newlines
-    .replace(/\s{2,}/g, " ")     // collapse excess spaces within lines
+    .replace(/\n{3,}/g, "\n\n") // collapse excess newlines
+    .replace(/\s{2,}/g, " ") // collapse excess spaces within lines
     .trim();
 
   // Extract image URLs from article body
   const imageUrls: string[] = [];
-  $(".v_news_content img, .wp_articlecontent img, .arti_con img, #vsb_content img, .page img").each((_, el) => {
-    const src = $(el).attr("src");
-    if (src && !src.includes("spacer.gif") && !src.includes("blank.gif")) {
-      try {
-        const absoluteUrl = new URL(src, url).toString();
-        if (!imageUrls.includes(absoluteUrl)) {
-          imageUrls.push(absoluteUrl);
+  $(".v_news_content img, .wp_articlecontent img, .arti_con img, #vsb_content img, .page img").each(
+    (_, el) => {
+      const src = $(el).attr("src");
+      if (src && !src.includes("spacer.gif") && !src.includes("blank.gif")) {
+        try {
+          const absoluteUrl = new URL(src, url).toString();
+          if (!imageUrls.includes(absoluteUrl)) {
+            imageUrls.push(absoluteUrl);
+          }
+        } catch {
+          // skip malformed URLs
         }
-      } catch {
-        // skip malformed URLs
       }
-    }
-  });
+    },
+  );
 
   if (!body || body.length < 20) {
     console.warn(`  [warn] No/short body for: ${url} (${body.length} chars)`);
@@ -307,10 +306,7 @@ async function parseArticle(
 /**
  * Parse a static content page (like 学院简介, 现任领导).
  */
-async function parseStaticPage(
-  url: string,
-  section: string
-): Promise<ParsedArticle | null> {
+async function parseStaticPage(url: string, section: string): Promise<ParsedArticle | null> {
   return parseArticle(url, section);
 }
 
@@ -320,7 +316,7 @@ async function parseStaticPage(
 
 async function saveArticle(
   articleRepo: ReturnType<typeof dataSource.getRepository<Article>>,
-  data: ParsedArticle
+  data: ParsedArticle,
 ): Promise<boolean> {
   // Skip if already in DB
   const existing = await articleRepo.findOne({ where: { url: data.url } });

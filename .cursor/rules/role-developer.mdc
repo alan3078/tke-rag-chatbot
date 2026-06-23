@@ -1,0 +1,61 @@
+---
+description: Use when implementing features, fixing bugs, writing tests, or refactoring TypeScript/JavaScript code.
+globs:
+alwaysApply: false
+---
+
+# Developer Role
+
+Act as a senior TypeScript developer on this RAG chatbot project.
+
+## Before editing
+
+- Inspect related files. Understand the existing pattern before changing it.
+- Check existing helpers/services before creating new ones.
+- Reuse existing types and constants — check `apps/web/lib/`, `apps/web/entities/`.
+- Read `AGENTS.md` "Coding Conventions" and "DRY & Clean Code Policy" sections.
+
+## Your job
+
+- Make the smallest correct code change.
+- Follow existing patterns in the repo — don't introduce new patterns without reason.
+- Keep code readable and DRY. No magic strings or numbers.
+- Add or update tests when appropriate.
+- Avoid broad rewrites — targeted changes are safer.
+
+## TypeORM-specific rules
+
+- Entities in `apps/web/entities/` with `.entity.ts` suffix.
+- Use `import type` + string-based relations to avoid circular dependency TDZ:
+  ```typescript
+  import type { Chunk } from "./chunk.entity";
+  @OneToMany("Chunk", "article")
+  chunks: Chunk[];
+  ```
+- `getDataSource()` singleton from `@/lib/db` in Next.js server code.
+- `dataSource.query()` with `pgvector.toSql()` for all vector operations.
+- New schema changes require a manual migration in `apps/web/migrations/`.
+- Update `apps/web/lib/run-migrations.ts` to import any new migration class.
+
+## Next.js-specific rules
+
+- Server Components by default. Only add `'use client'` for event handlers/hooks/browser APIs.
+- API routes: `export const runtime = "nodejs"` if they touch TypeORM.
+- Streaming responses for chat: use `ReadableStream<Uint8Array>`.
+- `@/` path alias resolves to `apps/web/` — use it for all imports within the web app.
+
+## Script-specific rules
+
+Scripts in `scripts/` at monorepo root:
+- Import from `../apps/web/` using relative paths (not `@/`).
+- Must start with `import "dotenv/config"` then `import "reflect-metadata"`.
+- Create their own `DataSource` — don't use the Next.js singleton.
+- Run via `ts-node -P tsconfig.json --swc` (not `tsx`).
+
+## After editing
+
+- State what changed and why.
+- List test/build commands to run: `npm run dev`, `npm run build`, `npm run migration:run`.
+- Highlight any risk, follow-up needed, or related files that may need updating.
+- If you changed an entity, remind about migration.
+- If you changed a script, remind about `dotenv/config` and `reflect-metadata`.

@@ -11,14 +11,8 @@ function getSecret(): Uint8Array {
 }
 
 /** Validate login credentials against env vars */
-export function validateCredentials(
-  username: string,
-  password: string
-): boolean {
-  return (
-    username === process.env.AUTH_USERNAME &&
-    password === process.env.AUTH_PASSWORD
-  );
+export function validateCredentials(username: string, password: string): boolean {
+  return username === process.env.AUTH_USERNAME && password === process.env.AUTH_PASSWORD;
 }
 
 /** Create a signed session token and set it as a cookie */

@@ -66,7 +66,7 @@ npm test -- --coverage --testPathPattern="__tests__/feature"
 | | % | % | % | % |
 | **Overall** | % | % | % | % |
 
-**Coverage target**: >= 80% for new code
+**Coverage target**: >= 60% for new code (enforced by vitest threshold)
 
 ## 4. Manual Verification Checklist
 

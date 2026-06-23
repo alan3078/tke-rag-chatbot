@@ -9,13 +9,14 @@ import { Article } from "../entities/article.entity";
 import { Chunk } from "../entities/chunk.entity";
 import { InitialSchema1700000000000 } from "../migrations/1700000000000-InitialSchema";
 import { AddImageUrls1700000000001 } from "../migrations/1700000000001-AddImageUrls";
+import { AddChunkLevel1700000000002 } from "../migrations/1700000000002-AddChunkLevel";
 
 async function main() {
   const dataSource = new DataSource({
     type: "postgres",
     url: process.env.DATABASE_URL,
     entities: [Article, Chunk],
-    migrations: [InitialSchema1700000000000, AddImageUrls1700000000001],
+    migrations: [InitialSchema1700000000000, AddImageUrls1700000000001, AddChunkLevel1700000000002],
     synchronize: false,
     logging: true,
   });

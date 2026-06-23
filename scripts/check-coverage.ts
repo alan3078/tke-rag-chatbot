@@ -57,14 +57,12 @@ async function main() {
 
   // Average chunks per article
   if (totalArticles > 0) {
-    console.log(
-      `Average chunks per article: ${(totalChunks / totalArticles).toFixed(1)}`
-    );
+    console.log(`Average chunks per article: ${(totalChunks / totalArticles).toFixed(1)}`);
   }
 
   // Chunks without embeddings
   const result = await dataSource.query(
-    `SELECT COUNT(*) as count FROM chunks WHERE embedding IS NULL`
+    `SELECT COUNT(*) as count FROM chunks WHERE embedding IS NULL`,
   );
   console.log(`Chunks without embeddings: ${result[0].count}`);
 

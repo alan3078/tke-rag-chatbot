@@ -1,23 +1,46 @@
 // =============================================================================
-// Chinese-Aware Text Chunking
+// Hierarchical Chinese-Aware Text Chunking (ADR-0006)
 // =============================================================================
-// Strategy:
-//   1. Split on paragraph boundaries (\n\n)
-//   2. Within paragraphs, split on sentence boundaries (。！？)
-//   3. Merge small segments up to target size (600-900 chars)
-//   4. Add overlap between chunks (100-150 chars)
-//   5. Prepend metadata (title, date, section) to each chunk
+// Two-level chunking strategy tailored to site article characteristics:
+//
+//   Level 1 (Article): One chunk per article — full text with metadata prefix.
+//                      Truncated at L1_TRUNCATION_CHARS for very long articles.
+//
+//   Level 2 (Section): Multiple chunks per long article (body >= L2_MIN_ARTICLE_CHARS).
+//                      Split on paragraph boundaries, then sentence boundaries.
+//                      Target ~L2_TARGET_CHUNK_CHARS with ~L2_OVERLAP_CHARS overlap.
+//
+// All chunks get a metadata prefix: title, date (if any), section (if any).
 // =============================================================================
 
-const TARGET_CHUNK_SIZE = 750; // Chinese characters
-const MAX_CHUNK_SIZE = 900;
-const MIN_CHUNK_SIZE = 200;
-const OVERLAP_SIZE = 120;
+import {
+  ChunkLevel,
+  L1_TRUNCATION_CHARS,
+  L2_MIN_ARTICLE_CHARS,
+  L2_TARGET_CHUNK_CHARS,
+  L2_MAX_CHUNK_CHARS,
+  L2_MIN_CHUNK_CHARS,
+  L2_OVERLAP_CHARS,
+  SENTENCE_ENDINGS,
+} from "./constants";
+import type { ChunkMetadata, ChunkData } from "@/types";
 
-/** Chinese sentence-ending punctuation */
-const SENTENCE_ENDINGS = /(?<=[。！？；\n])/;
+export type { ChunkMetadata, ChunkData };
 
-/** Split text into paragraphs */
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/** Build the metadata prefix prepended to every chunk. */
+function buildMetadataPrefix(metadata: ChunkMetadata): string {
+  const lines: string[] = [`标题：${metadata.title}`];
+  if (metadata.publishedDate) lines.push(`日期：${metadata.publishedDate}`);
+  if (metadata.section) lines.push(`栏目：${metadata.section}`);
+  lines.push("正文：");
+  return lines.join("\n");
+}
+
+/** Split text into paragraphs on double newlines. */
 function splitParagraphs(text: string): string[] {
   return text
     .split(/\n\n+/)
@@ -25,7 +48,7 @@ function splitParagraphs(text: string): string[] {
     .filter((p) => p.length > 0);
 }
 
-/** Split a paragraph into sentences */
+/** Split a paragraph into sentences on Chinese punctuation. */
 function splitSentences(paragraph: string): string[] {
   return paragraph
     .split(SENTENCE_ENDINGS)
@@ -34,22 +57,22 @@ function splitSentences(paragraph: string): string[] {
 }
 
 /**
- * Merge sentences into chunks respecting size constraints.
+ * Merge sentences into chunks respecting size constraints with overlap.
+ * Returns raw text chunks (no metadata prefix).
  */
 function mergeSentencesIntoChunks(sentences: string[]): string[] {
+  if (sentences.length === 0) return [];
+
   const chunks: string[] = [];
   let current: string[] = [];
   let currentLen = 0;
 
   for (const sentence of sentences) {
-    if (
-      currentLen + sentence.length > TARGET_CHUNK_SIZE &&
-      currentLen >= MIN_CHUNK_SIZE
-    ) {
+    if (currentLen + sentence.length > L2_TARGET_CHUNK_CHARS && currentLen >= L2_MIN_CHUNK_CHARS) {
       chunks.push(current.join(""));
 
       // Keep overlap from the end of current chunk
-      const overlapText = current.join("").slice(-OVERLAP_SIZE);
+      const overlapText = current.join("").slice(-L2_OVERLAP_CHARS);
       current = [overlapText];
       currentLen = overlapText.length;
     }
@@ -64,66 +87,67 @@ function mergeSentencesIntoChunks(sentences: string[]): string[] {
   return chunks;
 }
 
-export interface ChunkMetadata {
-  title: string;
-  section: string | null;
-  publishedDate: string | null;
-}
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 /**
- * Chunk article body text into appropriately-sized pieces.
+ * Chunk an article body into hierarchical L1 + L2 chunks.
+ *
+ * Rules:
+ * - Always produces exactly 1 L1 chunk (full text, truncated at 2000 chars if needed)
+ * - Produces L2 chunks only if body >= 800 chars
+ * - L2 chunks are 600-900 chars with ~100 char overlap
+ * - All chunks get metadata prefix (title, date, section)
+ * - Returns empty array for empty body
  */
-export function chunkArticle(body: string, metadata: ChunkMetadata): string[] {
-  const paragraphs = splitParagraphs(body);
+export function chunkArticle(body: string, metadata: ChunkMetadata): ChunkData[] {
+  const trimmedBody = body.trim();
+  if (trimmedBody.length === 0) return [];
 
-  // Collect all sentences from all paragraphs
-  const allSentences: string[] = [];
-  for (const paragraph of paragraphs) {
-    if (paragraph.length <= MAX_CHUNK_SIZE) {
-      allSentences.push(paragraph + "\n");
-    } else {
-      const sentences = splitSentences(paragraph);
-      allSentences.push(...sentences);
+  const prefix = buildMetadataPrefix(metadata);
+  const chunks: ChunkData[] = [];
+  let index = 0;
+
+  // --- Level 1: Article-level chunk (always exactly one) ---
+  const l1Body =
+    trimmedBody.length > L1_TRUNCATION_CHARS
+      ? trimmedBody.slice(0, L1_TRUNCATION_CHARS)
+      : trimmedBody;
+
+  chunks.push({
+    chunkIndex: index++,
+    level: ChunkLevel.Article,
+    content: `${prefix}\n${l1Body}`,
+    tokenCount: l1Body.length,
+  });
+
+  // --- Level 2: Section-level chunks (only for long articles) ---
+  if (trimmedBody.length >= L2_MIN_ARTICLE_CHARS) {
+    const paragraphs = splitParagraphs(trimmedBody);
+
+    // Collect all sentences from all paragraphs
+    const allSentences: string[] = [];
+    for (const paragraph of paragraphs) {
+      if (paragraph.length <= L2_MAX_CHUNK_CHARS) {
+        allSentences.push(paragraph + "\n");
+      } else {
+        const sentences = splitSentences(paragraph);
+        allSentences.push(...sentences);
+      }
+    }
+
+    const rawChunks = mergeSentencesIntoChunks(allSentences);
+
+    for (const rawChunk of rawChunks) {
+      chunks.push({
+        chunkIndex: index++,
+        level: ChunkLevel.Section,
+        content: `${prefix}\n${rawChunk.trim()}`,
+        tokenCount: rawChunk.trim().length,
+      });
     }
   }
 
-  // Merge into chunks
-  const rawChunks = mergeSentencesIntoChunks(allSentences);
-
-  // Prepend metadata to each chunk
-  const metadataPrefix = [
-    `标题：${metadata.title}`,
-    metadata.publishedDate ? `日期：${metadata.publishedDate}` : null,
-    metadata.section ? `栏目：${metadata.section}` : null,
-    "正文：",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  return rawChunks.map((chunk) => `${metadataPrefix}\n${chunk.trim()}`);
-}
-
-export interface ChunkData {
-  articleId: number;
-  chunkIndex: number;
-  content: string;
-  tokenCount: number;
-}
-
-/**
- * Create chunk data objects from article text.
- */
-export function createChunks(
-  articleId: number,
-  body: string,
-  metadata: ChunkMetadata
-): ChunkData[] {
-  const chunkTexts = chunkArticle(body, metadata);
-
-  return chunkTexts.map((content, index) => ({
-    articleId,
-    chunkIndex: index,
-    content,
-    tokenCount: content.length,
-  }));
+  return chunks;
 }

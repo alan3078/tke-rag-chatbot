@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth";
 import { ragQuery } from "@/lib/rag";
-import type { ChatMessage } from "@/lib/rag";
+import type { ChatMessage } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -21,10 +21,7 @@ export async function POST(request: NextRequest) {
     };
 
     if (!message || typeof message !== "string") {
-      return NextResponse.json(
-        { error: "Message is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
     // 3. Run RAG pipeline
@@ -37,9 +34,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Chat API error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate response" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to generate response" }, { status: 500 });
   }
 }

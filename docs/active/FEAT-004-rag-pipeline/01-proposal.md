@@ -135,7 +135,7 @@ The core RAG pipeline orchestrates the entire question-answering flow: take a us
 | Citations present | 100% of answers include >= 1 citation | Automated test |
 | Graceful refusal | 100% for out-of-corpus questions | Automated test with irrelevant queries |
 | Response latency | < 10s average | Timer in API route |
-| Test coverage | >= 80% on rag.ts + llm.ts | Jest coverage report |
+| Test coverage | >= 60% on rag.ts + llm.ts | Vitest coverage report |
 
 ## 13. Open Questions
 

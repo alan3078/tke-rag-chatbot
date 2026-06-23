@@ -14,9 +14,7 @@ export default async function ChatPage() {
       <header className="flex items-center justify-between px-6 py-3 border-b bg-white">
         <div>
           <h1 className="text-lg font-semibold">清华大学软件学院 — 知识问答</h1>
-          <p className="text-sm text-gray-500">
-            基于 RAG 的智能问答系统
-          </p>
+          <p className="text-sm text-gray-500">基于 RAG 的智能问答系统</p>
         </div>
         <form action="/api/auth/logout" method="POST">
           <button

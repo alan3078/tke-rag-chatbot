@@ -15,5 +15,10 @@
   "ts-node": {
     "swc": true
   },
-  "include": ["scripts/**/*.ts", "apps/web/entities/**/*.ts", "apps/web/lib/**/*.ts", "apps/web/migrations/**/*.ts"]
+  "include": [
+    "scripts/**/*.ts",
+    "apps/web/entities/**/*.ts",
+    "apps/web/lib/**/*.ts",
+    "apps/web/migrations/**/*.ts"
+  ]
 }

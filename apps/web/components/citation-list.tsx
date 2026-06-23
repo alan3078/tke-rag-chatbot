@@ -1,9 +1,4 @@
-interface Citation {
-  title: string;
-  url: string;
-  section: string | null;
-  date: string | null;
-}
+import type { Citation } from "@/types";
 
 interface CitationListProps {
   citations: Citation[];
@@ -26,14 +21,8 @@ export function CitationList({ citations }: CitationListProps) {
             >
               {citation.title}
             </a>
-            {citation.section && (
-              <span className="ml-2 text-gray-400">
-                [{citation.section}]
-              </span>
-            )}
-            {citation.date && (
-              <span className="ml-2 text-gray-400">{citation.date}</span>
-            )}
+            {citation.section && <span className="ml-2 text-gray-400">[{citation.section}]</span>}
+            {citation.date && <span className="ml-2 text-gray-400">{citation.date}</span>}
           </li>
         ))}
       </ul>

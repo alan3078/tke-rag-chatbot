@@ -30,10 +30,10 @@ Do not invent names, dates, awards, or article facts.
 When citing sources, format them as:
 [来源: title](url)`;
 
-export interface LlmMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
+import { MessageRole } from "@/lib/constants";
+import type { LlmMessage } from "@/types";
+
+export type { LlmMessage };
 
 /**
  * Generate a chat completion with the RAG context.
@@ -41,13 +41,13 @@ export interface LlmMessage {
 export async function generateAnswer(
   query: string,
   context: string,
-  conversationHistory: LlmMessage[] = []
+  conversationHistory: LlmMessage[] = [],
 ): Promise<string> {
   const messages: LlmMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
     ...conversationHistory,
     {
-      role: "user",
+      role: MessageRole.User,
       content: `Context:\n${context}\n\nQuestion: ${query}`,
     },
   ];
@@ -69,13 +69,13 @@ export async function generateAnswer(
 export async function generateAnswerStream(
   query: string,
   context: string,
-  conversationHistory: LlmMessage[] = []
+  conversationHistory: LlmMessage[] = [],
 ): Promise<ReadableStream<Uint8Array>> {
   const messages: LlmMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
     ...conversationHistory,
     {
-      role: "user",
+      role: MessageRole.User,
       content: `Context:\n${context}\n\nQuestion: ${query}`,
     },
   ];

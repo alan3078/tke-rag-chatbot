@@ -9,29 +9,17 @@
 import pgvector from "pgvector";
 import { getDataSource } from "./db";
 import { generateQueryEmbedding } from "./embeddings";
+import { RRF_K, VECTOR_WEIGHT, KEYWORD_WEIGHT, FINAL_TOP_K } from "./constants";
+import type { RetrievalResult } from "@/types";
 
-const RRF_K = 60;
-const VECTOR_WEIGHT = 0.6;
-const KEYWORD_WEIGHT = 0.4;
-const TOP_K = 8;
-
-export interface RetrievalResult {
-  chunkId: number;
-  articleId: number;
-  content: string;
-  score: number;
-  title: string;
-  url: string;
-  section: string | null;
-  publishedDate: Date | null;
-}
+export type { RetrievalResult };
 
 /**
  * Perform hybrid retrieval: vector + keyword search with RRF fusion.
  */
 export async function hybridSearch(
   query: string,
-  limit: number = TOP_K
+  limit: number = FINAL_TOP_K,
 ): Promise<RetrievalResult[]> {
   const ds = await getDataSource();
 
@@ -100,7 +88,7 @@ export async function hybridSearch(
     ORDER BY score DESC
     LIMIT $6
     `,
-    [embeddingSql, query, VECTOR_WEIGHT, RRF_K, KEYWORD_WEIGHT, limit]
+    [embeddingSql, query, VECTOR_WEIGHT, RRF_K, KEYWORD_WEIGHT, limit],
   );
 
   return results;
@@ -111,9 +99,6 @@ export async function hybridSearch(
  */
 export function formatContext(results: RetrievalResult[]): string {
   return results
-    .map(
-      (r, i) =>
-        `[Source ${i + 1}] ${r.title} (${r.url})\n${r.content}`
-    )
+    .map((r, i) => `[Source ${i + 1}] ${r.title} (${r.url})\n${r.content}`)
     .join("\n\n---\n\n");
 }
