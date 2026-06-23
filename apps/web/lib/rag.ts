@@ -11,9 +11,24 @@
 
 import { hybridSearch, formatContext } from "./retrieval";
 import { generateAnswer } from "./llm";
+import { normalizePublishedDate } from "./date-utils";
 import type { Citation, ChatMessage, RagResponse, LlmMessage } from "@/types";
 
 export type { Citation, ChatMessage, RagResponse };
+
+const INSUFFICIENT_CONTEXT_ANSWER =
+  "抱歉，我在已索引的网站内容中找不到与您问题相关的信息。请尝试换个方式提问。";
+
+function buildCitations(retrievedChunks: RagResponse["retrievedChunks"]): Citation[] {
+  return retrievedChunks
+    .map((chunk) => ({
+      title: chunk.title,
+      url: chunk.url,
+      section: chunk.section,
+      date: normalizePublishedDate(chunk.publishedDate),
+    }))
+    .filter((citation, index, self) => self.findIndex((item) => item.url === citation.url) === index);
+}
 
 /**
  * Run the full RAG pipeline for a user query.
@@ -27,7 +42,7 @@ export async function ragQuery(
 
   if (retrievedChunks.length === 0) {
     return {
-      answer: "抱歉，我在已索引的网站内容中找不到与您问题相关的信息。请尝试换个方式提问。",
+      answer: INSUFFICIENT_CONTEXT_ANSWER,
       citations: [],
       retrievedChunks: [],
     };
@@ -46,15 +61,7 @@ export async function ragQuery(
   const answer = await generateAnswer(query, context, llmHistory);
 
   // 5. Extract citations from retrieved chunks
-  const citations: Citation[] = retrievedChunks
-    .map((chunk) => ({
-      title: chunk.title,
-      url: chunk.url,
-      section: chunk.section,
-      date: chunk.publishedDate ? new Date(chunk.publishedDate).toISOString().split("T")[0] : null,
-    }))
-    // Deduplicate by URL
-    .filter((citation, index, self) => self.findIndex((c) => c.url === citation.url) === index);
+  const citations = buildCitations(retrievedChunks);
 
   return {
     answer,

@@ -1,5 +1,8 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { ensureServerEnv } from "@/lib/server-env";
+
+ensureServerEnv();
 
 const SESSION_COOKIE = "tke-session";
 const EXPIRY = "24h";

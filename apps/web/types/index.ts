@@ -28,6 +28,17 @@ export interface DisplayMessage extends ChatMessage {
   citations?: Citation[];
 }
 
+/** Login form payload sent to the auth API */
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+/** Successful login response */
+export interface LoginResponse {
+  success: true;
+}
+
 // =============================================================================
 // Citation & RAG Response Types
 // =============================================================================
@@ -47,6 +58,18 @@ export interface RagResponse {
   retrievedChunks: RetrievalResult[];
 }
 
+/** Chat request payload sent to the chat API */
+export interface ChatRequest {
+  message: string;
+  history: ChatMessage[];
+}
+
+/** Chat API payload returned to the UI */
+export interface ChatResponse {
+  answer: string;
+  citations: Citation[];
+}
+
 // =============================================================================
 // Retrieval Types
 // =============================================================================
@@ -60,7 +83,8 @@ export interface RetrievalResult {
   title: string;
   url: string;
   section: string | null;
-  publishedDate: Date | null;
+  publishedDate: Date | string | null;
+  level: ChunkLevel;
 }
 
 // =============================================================================

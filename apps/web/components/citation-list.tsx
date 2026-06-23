@@ -8,21 +8,25 @@ export function CitationList({ citations }: CitationListProps) {
   if (citations.length === 0) return null;
 
   return (
-    <div className="ml-2 mt-2 p-3 bg-gray-50 rounded-lg border text-sm">
-      <p className="font-medium text-gray-600 mb-1">Sources:</p>
+    <div className="ml-2 mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+        Sources:
+      </p>
       <ul className="space-y-1">
         {citations.map((citation, i) => (
-          <li key={i} className="text-gray-500">
+          <li key={i} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-600">
             <a
               href={citation.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
+              className="font-medium text-[#7A1F2B] hover:underline"
             >
               {citation.title}
             </a>
-            {citation.section && <span className="ml-2 text-gray-400">[{citation.section}]</span>}
-            {citation.date && <span className="ml-2 text-gray-400">{citation.date}</span>}
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+              {citation.section && <span>[{citation.section}]</span>}
+              {citation.date && <span>{citation.date}</span>}
+            </div>
           </li>
         ))}
       </ul>

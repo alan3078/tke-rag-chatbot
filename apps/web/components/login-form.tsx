@@ -1,76 +1,113 @@
 "use client";
 
-import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { postJson } from "@/lib/api-client";
+import type { LoginRequest, LoginResponse } from "@/types";
+
+const LOGIN_FORM_SCHEMA = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginFormValues = z.infer<typeof LOGIN_FORM_SCHEMA>;
+
+const LOGIN_ENDPOINT = "/api/auth/login";
+const USERNAME_FIELD = "username";
+const PASSWORD_FIELD = "password";
+const LOGIN_BUTTON_LABEL = "Login";
+const LOGIN_PENDING_LABEL = "Logging in...";
 
 export function LoginForm() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(LOGIN_FORM_SCHEMA),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  });
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  const loginMutation = useMutation<LoginResponse, Error, LoginRequest>({
+    mutationFn: (credentials) => postJson<LoginResponse, LoginRequest>(LOGIN_ENDPOINT, credentials),
+    onSuccess: () => {
+      router.push("/chat");
+      router.refresh();
+    },
+  });
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (res.ok) {
-        router.push("/chat");
-        router.refresh();
-      } else {
-        const data = await res.json();
-        setError(data.error ?? "Login failed");
-      }
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const isSubmitting = loginMutation.isPending;
+  const submissionError = loginMutation.error?.message ?? "";
+  const onSubmit = handleSubmit((values) => {
+    loginMutation.reset();
+    loginMutation.mutate(values);
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+    <form onSubmit={onSubmit} className="space-y-5">
+      <div className="space-y-1.5">
+        <label
+          htmlFor={USERNAME_FIELD}
+          className="block text-xs font-semibold uppercase tracking-[0.24em] text-slate-500"
+        >
           Username
         </label>
         <input
-          id="username"
+          id={USERNAME_FIELD}
           type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#7A1F2B]/30"
+          autoComplete="username"
+          disabled={isSubmitting}
+          {...register(USERNAME_FIELD)}
         />
+        {errors.username && (
+          <p className="text-sm text-red-700" role="alert">
+            {errors.username.message}
+          </p>
+        )}
       </div>
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+      <div className="space-y-1.5">
+        <label
+          htmlFor={PASSWORD_FIELD}
+          className="block text-xs font-semibold uppercase tracking-[0.24em] text-slate-500"
+        >
           Password
         </label>
         <input
-          id="password"
+          id={PASSWORD_FIELD}
           type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#7A1F2B]/30"
+          autoComplete="current-password"
+          disabled={isSubmitting}
+          {...register(PASSWORD_FIELD)}
         />
+        {errors.password && (
+          <p className="text-sm text-red-700" role="alert">
+            {errors.password.message}
+          </p>
+        )}
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {submissionError && (
+        <p
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          role="alert"
+        >
+          {submissionError}
+        </p>
+      )}
       <button
         type="submit"
-        disabled={loading}
-        className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={isSubmitting}
+        className="w-full rounded-xl bg-[#7A1F2B] px-4 py-3 text-sm font-semibold tracking-[0.08em] text-white transition hover:bg-[#651a24] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {loading ? "Logging in..." : "Login"}
+        {isSubmitting ? LOGIN_PENDING_LABEL : LOGIN_BUTTON_LABEL}
       </button>
     </form>
   );
