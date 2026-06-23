@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "outDir": "./dist"
+  },
+  "ts-node": {
+    "swc": true
+  },
+  "include": ["scripts/**/*.ts", "apps/web/entities/**/*.ts", "apps/web/lib/**/*.ts", "apps/web/migrations/**/*.ts"]
+}

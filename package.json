@@ -1,0 +1,30 @@
+{
+  "name": "tke-rag-chatbot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RAG chatbot for Tsinghua School of Software website corpus",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web",
+    "start": "npm run start -w apps/web",
+    "lint": "npm run lint -w apps/web",
+    "crawl": "ts-node -P tsconfig.json --swc scripts/crawl.ts",
+    "ingest": "ts-node -P tsconfig.json --swc scripts/ingest.ts",
+    "check-coverage": "ts-node -P tsconfig.json --swc scripts/check-coverage.ts",
+    "migration:run": "ts-node -P tsconfig.json --swc apps/web/lib/run-migrations.ts",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d apps/web/lib/data-source.ts apps/web/migrations/Migration"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.15.43",
+    "@swc/helpers": "^0.5.23",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  }
+}
