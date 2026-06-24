@@ -1,10 +1,11 @@
 # =============================================================================
 # Production Docker Compose — TKE RAG Chatbot
+# Builds images directly on the server from cloned source.
 # System nginx (outside Docker) proxies to these containers on localhost.
 # =============================================================================
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: docker.m.daocloud.io/pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
@@ -21,7 +22,9 @@ services:
       - "127.0.0.1:5432:5432"
 
   backend:
-    image: ghcr.io/${GITHUB_REPO:-alanyiu/tke-rag-chatbot}/backend:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/tke_rag
@@ -40,7 +43,9 @@ services:
       - "127.0.0.1:3001:3001"
 
   frontend:
-    image: ghcr.io/${GITHUB_REPO:-alanyiu/tke-rag-chatbot}/frontend:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
     restart: unless-stopped
     environment:
       - NODE_ENV=production
