@@ -24,13 +24,18 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 RUN addgroup -g 1001 nextjs && adduser -S -u 1001 -G nextjs nextjs
 
-COPY --from=builder /app/apps/web/public ./public
+# Standalone output mirrors monorepo: .next/standalone/apps/web/server.js
+# Copy the entire standalone directory (includes node_modules + server.js)
 COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./.next/static
+# Copy static assets into the app's .next dir where server.js expects them
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+# Copy public dir if it has content (use conditional copy pattern)
+COPY --from=builder /app/apps/web/public* ./apps/web/public/
 
 USER nextjs
 EXPOSE 3000
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
-CMD ["node", "server.js"]
+# server.js is inside apps/web/ in the standalone monorepo output
+CMD ["node", "apps/web/server.js"]
