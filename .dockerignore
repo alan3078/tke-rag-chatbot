@@ -1,0 +1,14 @@
+node_modules
+.next
+dist
+.git
+.github
+*.md
+docs
+certs
+scripts/data
+**/__tests__
+**/*.test.*
+**/*.spec.*
+.env
+.env.*

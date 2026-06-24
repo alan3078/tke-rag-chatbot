@@ -23,7 +23,7 @@ However: zero tests for deployment, no health check endpoint in the app, no smok
 
 | # | Requirement | Priority | Rationale |
 |---|-------------|----------|-----------|
-| BR-1 | App accessible via HTTPS on provided server at port 8443 | Must | Challenge: "Must be accessible via HTTPS on 123.59.90.15:8443" |
+| BR-1 | App accessible via HTTPS on provided server at port 8443 | Must | Challenge: "Must be accessible via HTTPS" |
 | BR-2 | Docker Compose deployment (single `docker compose up`) | Must | Reproducible, consistent deployment |
 | BR-3 | PostgreSQL with pgvector for data storage | Must | Required for vector search |
 | BR-4 | Nginx SSL termination with self-signed cert | Must | HTTPS requirement; no domain name available |

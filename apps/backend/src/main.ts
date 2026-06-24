@@ -6,14 +6,10 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/http-exception.filter";
+import { getCorsAllowedOrigins } from "./common/cors";
 import { ensureServerEnv } from "./common/server-env";
 
 ensureServerEnv();
-
-const ALLOWED_ORIGINS = [
-  "http://localhost:3000",
-  "https://123.59.90.15:8443",
-];
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,7 +21,7 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: process.env.NODE_ENV === "production" ? ALLOWED_ORIGINS : true,
+    origin: process.env.NODE_ENV === "production" ? getCorsAllowedOrigins() : true,
     credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE"],
   });

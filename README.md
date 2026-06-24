@@ -96,12 +96,12 @@ npm run dev
 mkdir -p certs
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout certs/server.key -out certs/server.crt \
-  -subj "/CN=123.59.90.15"
+  -subj "/CN=<SERVER_HOST>"
 
 # Build and deploy
 docker compose up -d --build
 
-# Accessible at https://123.59.90.15:8443
+# Accessible at https://<SERVER_HOST>:8443
 ```
 
 ## Key Design Decisions

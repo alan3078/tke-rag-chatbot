@@ -21,7 +21,7 @@ website corpus (~850 pages).
 
 ### Deployment Target
 
-- Server: `123.59.90.15:8443` (HTTPS)
+- Server: `https://<SERVER_HOST>:8443` (HTTPS; set `SERVER_HOST` in GitHub Secrets)
 - Docker Compose deployment with Nginx reverse proxy
 - Must be publicly accessible with login authentication
 
@@ -303,7 +303,7 @@ See `.env.example` for the complete list. Key variables:
 
 ### API Provider Strategy
 
-OpenAI and Claude APIs are **blocked from the Beijing server** (123.59.90.15).
+OpenAI and Claude APIs are **blocked from the Beijing deployment server**.
 We use two separate, China-accessible providers:
 
 - **LLM**: OpenRouter → DeepSeek V4 Pro ($0.43/$0.87 per 1M tokens)
@@ -346,12 +346,12 @@ npm run dev
 mkdir -p certs
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout certs/server.key -out certs/server.crt \
-  -subj "/CN=123.59.90.15"
+  -subj "/CN=<SERVER_HOST>"
 
 # Build and deploy everything
 docker compose up -d --build
 
-# The app will be accessible at https://123.59.90.15:8443
+# The app will be accessible at https://<SERVER_HOST>:8443
 ```
 
 ---
