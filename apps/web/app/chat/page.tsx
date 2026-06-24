@@ -1,42 +1,75 @@
-import { redirect } from "next/navigation";
-import { verifySession } from "@/lib/auth";
-import { ChatBox } from "@/components/chat-box";
+"use client";
 
-export default async function ChatPage() {
-  const user = await verifySession();
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { AuthGuard } from "@/components/auth/auth-guard";
+import { ChatBox } from "@/components/chat/chat-box";
+import { ChatSidebar } from "@/components/chat/chat-sidebar";
+import { LanguageSwitcher } from "@/components/auth/language-switcher";
+import { useI18n } from "@/providers/i18n-provider";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
-  if (!user) {
-    redirect("/login");
+export default function ChatPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { t } = useI18n();
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    queryClient.invalidateQueries({ queryKey: ["session"] });
+    router.push("/login");
   }
 
+  const handleNewChat = useCallback(() => {
+    setActiveSessionId(null);
+  }, []);
+
+  const handleSelectSession = useCallback((id: string) => {
+    setActiveSessionId(id);
+  }, []);
+
+  const handleSessionCreated = useCallback((id: string) => {
+    setActiveSessionId(id);
+  }, []);
+
   return (
-    <main className="flex h-screen flex-col bg-[var(--page-bg)] text-[var(--ink)]">
-      <header className="border-b border-[var(--line)] bg-white/95 px-6 py-4 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
-              TKE Knowledge Console
-            </p>
-            <h1 className="mt-2 text-lg font-semibold tracking-tight">
-              清华大学软件学院 — 知识问答
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              基于 RAG 的智能问答系统，回答均附带来源引用
-            </p>
+    <AuthGuard>
+      <main className="flex h-screen flex-col bg-background text-foreground">
+        <header className="border-b bg-card/95 px-6 py-3 backdrop-blur">
+          <div className="flex w-full items-center justify-between gap-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
+                {t("tkeTag")}
+              </p>
+              <h1 className="mt-1 text-base font-semibold tracking-tight">
+                {t("app.title")} — {t("app.subtitle")}
+              </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <LanguageSwitcher />
+              <Button variant="outline" onClick={handleLogout} size="sm">
+                <LogOut className="mr-2 h-4 w-4" />
+                {t("chat.logout")}
+              </Button>
+            </div>
           </div>
-          <form action="/api/auth/logout" method="POST">
-            <button
-              type="submit"
-              className="rounded-full border border-[var(--line)] px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-            >
-              退出登录
-            </button>
-          </form>
+        </header>
+        <div className="flex flex-1 overflow-hidden">
+          <ChatSidebar
+            activeSessionId={activeSessionId}
+            onSelectSession={handleSelectSession}
+            onNewChat={handleNewChat}
+          />
+          <ChatBox
+            key={activeSessionId ?? "new"}
+            sessionId={activeSessionId}
+            onSessionCreated={handleSessionCreated}
+          />
         </div>
-      </header>
-      <div className="mx-auto flex w-full max-w-6xl flex-1 overflow-hidden">
-        <ChatBox />
-      </div>
-    </main>
+      </main>
+    </AuthGuard>
   );
 }

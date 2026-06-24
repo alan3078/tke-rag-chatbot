@@ -14,20 +14,6 @@ export default tseslint.config(
   {
     files: ["**/*.ts", "**/*.tsx"],
     rules: {
-      // No magic strings — enforce enum/const usage
-      "no-restricted-syntax": [
-        "warn",
-        {
-          selector: "Literal[value='user']",
-          message: "Use MessageRole.User from @/lib/constants instead of magic string 'user'.",
-        },
-        {
-          selector: "Literal[value='assistant']",
-          message:
-            "Use MessageRole.Assistant from @/lib/constants instead of magic string 'assistant'.",
-        },
-      ],
-
       // DRY: no unused variables (except prefixed with _)
       "@typescript-eslint/no-unused-vars": [
         "error",

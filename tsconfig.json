@@ -12,13 +12,7 @@
     "strictPropertyInitialization": false,
     "outDir": "./dist"
   },
-  "ts-node": {
-    "swc": true
-  },
   "include": [
-    "scripts/**/*.ts",
-    "apps/web/entities/**/*.ts",
-    "apps/web/lib/**/*.ts",
-    "apps/web/migrations/**/*.ts"
+    "apps/backend/src/**/*.ts"
   ]
 }

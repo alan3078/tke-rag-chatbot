@@ -1,12 +1,16 @@
 import type { NextConfig } from "next";
-import { loadEnvConfig } from "@next/env";
-import path from "path";
 
-loadEnvConfig(path.resolve(__dirname, "../.."));
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
-  serverExternalPackages: ["typeorm", "pg", "nodejieba", "reflect-metadata"],
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${BACKEND_URL}/api/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
